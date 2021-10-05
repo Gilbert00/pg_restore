@@ -1,0 +1,6 @@
+*.log
+*.out
+*.7z
+pg.in
+schedulers_copy.txt
+sched_copy00
