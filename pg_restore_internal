@@ -1,0 +1,115 @@
+#!/bin/bash
+#
+# v 0.0.2
+#
+
+#set -x
+
+Err="***Error***:"
+
+if [[ $# -lt 4 ]]; then
+	echo "Usage: pg_restore_internal <server_from> <server_to> <server_media> <backup> <rename_directory>?"
+	exit 1
+fi
+
+SrvFrom=$1
+SrvTo=$2
+SrvMedia=$3
+Bckp=$4
+
+if [[ $# -eq 4 ]] || [[ -z $5 ]]; then
+  DirRnm=""
+else
+	DirRnm="/$5/"
+fi
+
+DirLog="/usr/openv/netbackup/logs/user_ops/"
+
+LogFile="${DirLog}pg_restore_$$.log"
+[[ -f $LogFile ]] && rm -f $LogFile
+
+InFile="pg_restore_$$.in"
+
+function check_server() {
+# Srv
+
+	local Srv=$1
+	local TestClient="/usr/openv/netbackup/bin/admincmd/bptestbpcd -client"
+	$TestClient $Srv
+	if [ $? -gt 0 ]; then
+		echo "${Err}NB client isn't on $Srv !"
+		exit 2
+  fi
+}
+
+function check_media() {
+# $SrvMedia
+
+	local Srv=$1
+	local N=$(nbemmcmd -listhosts -nbservers -parsable | grep -c $Srv)
+	if [[ $N -eq 0 ]]; then
+		echo "${Err}Srv isn't media server!"
+		exit 4
+	fi
+	
+	N=$(nbemmcmd -listhosts -nbservers -parsable | grep $Srv | awk '{print $9}')
+	if [[ $N -ne 12 ]] && [[ $N -ne 14 ]]; then
+		echo "${Err}Srv isn't active media server!"
+		exit 4
+	fi	
+}
+
+function check_altnames() {
+
+	AltFile="/usr/openv/netbackup/db/altnames/$SrvTo"
+	if [[ -f $AltFile  ]] && [[ $(grep -c "$SrvFrom" $AltFile) -gt 0 ]]; then
+		:
+	else
+		echo "$SrvFrom" >> $AltFile
+	fi
+}
+
+
+#check_servers_exists
+check_server $SrvFrom
+check_server $SrvTo
+check_server $SrvMedia
+
+check_media $SrvMedia
+
+#check_media_in_clent $SrvTo $SrvMedia
+
+check_altnames
+
+
+Srv0=$SrvFrom
+Srv9=$SrvTo
+DMS="-disk_media_server $SrvMedia"
+f=$InFile
+L=$LogFile
+R=""
+DT="-s 11/28/2021 00:00:00 -e 11/29/2021 20:00:00"
+DT=""
+
+DirBckp="/pg_backup/"
+FullBckp="${DirBckp}$Bckp"
+
+echo "$FullBckp" > $InFile
+
+if [[ ! -z $DirRnm ]]; then
+	RnmFile="${DirLog}pg_rnm_$$.in"
+	R="-R $RnmFile"
+	echo "change $FullBckp to ${DirRnm}$Bckp" > $RnmFile
+fi
+
+CMD0=/usr/openv/netbackup/bin/bprestore
+if [ ! -x $CMD0OD  ]; then
+  echo "${Err}$CMD0 don't found !"
+  exit 3
+fi
+
+CMD="$CMD0 -C $Srv0 -D $Srv9 -f $f -print_jobid -L $L -t 0 $R  $DMS $DT"
+echo $CMD
+#!!!$CMD
+
+
