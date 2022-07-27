@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# v 0.0.2
+# v 0.0.4
 #
 
 #set -x
@@ -59,6 +59,25 @@ function check_media() {
 	fi	
 }
 
+function check_backup() {
+# $SrvFrom $Bckp
+
+	local N=$(bplist -C $1 -t 0 -R /pg_backup | grep -c $2)
+	if [[ $N -eq 0 ]]; then
+		echo "${Err}Backup $2 don't exists!"
+		exit 5
+	fi
+}
+
+function check_media_in_clent() {
+# $SrvTo $SrvMedia
+  local N=$(bpgetconfig -M $1 | grep SERVER | grep -c  $2)
+	if [[ $N -eq 0 ]]; then
+		echo "${Err}Server $2 don't exists in clients $1 bp.conf !"
+		exit 6
+	fi	
+}
+
 function check_altnames() {
 
 	AltFile="/usr/openv/netbackup/db/altnames/$SrvTo"
@@ -77,7 +96,9 @@ check_server $SrvMedia
 
 check_media $SrvMedia
 
-#check_media_in_clent $SrvTo $SrvMedia
+check_backup $SrvFrom $Bckp
+
+check_media_in_clent $SrvTo $SrvMedia
 
 check_altnames
 
@@ -108,8 +129,16 @@ if [ ! -x $CMD0OD  ]; then
   exit 3
 fi
 
+echo ""
+echo "$(basename $0) PID:$$"
+echo ""
+
 CMD="$CMD0 -C $Srv0 -D $Srv9 -f $f -print_jobid -L $L -t 0 $R  $DMS $DT"
 echo $CMD
-#!!!$CMD
+$CMD
+
+#[[ $? -eq 0 ]] && gzip $L
+
+
 
 
