@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# v 0.0.4
+# v 0.0.5
 #
 
 #set -x
@@ -69,12 +69,22 @@ function check_backup() {
 	fi
 }
 
+function set_server_in_config() {
+# $SrvTo $SrvMedia
+	local FileConfig="/tmp/pg_restore_config_$$.tmp"
+	bpgetconfig -M $1 | grep -e "^SERVER[[:space:]]*=" > $FileConfig
+	echo "SERVER = $2" >> $FileConfig 
+	cat $FileConfig | bpsetconfig -h $1
+}
+
 function check_media_in_clent() {
 # $SrvTo $SrvMedia
   local N=$(bpgetconfig -M $1 | grep SERVER | grep -c  $2)
 	if [[ $N -eq 0 ]]; then
-		echo "${Err}Server $2 don't exists in clients $1 bp.conf !"
-		exit 6
+		set_server_in_config $1 $2		
+		echo "Server $2 has been added into clients $1 bp.conf !"
+#		echo "${Err}Server $2 don't exists in clients $1 bp.conf !"
+#		exit 6
 	fi	
 }
 
@@ -112,17 +122,20 @@ R=""
 DT="-s 11/28/2021 00:00:00 -e 11/29/2021 20:00:00"
 DT=""
 
+# set $InFile
 DirBckp="/pg_backup/"
 FullBckp="${DirBckp}$Bckp"
 
 echo "$FullBckp" > $InFile
 
+# set $RnmFile
 if [[ ! -z $DirRnm ]]; then
 	RnmFile="${DirLog}pg_rnm_$$.in"
 	R="-R $RnmFile"
 	echo "change $FullBckp to ${DirRnm}$Bckp" > $RnmFile
 fi
 
+# gen CMD
 CMD0=/usr/openv/netbackup/bin/bprestore
 if [ ! -x $CMD0OD  ]; then
   echo "${Err}$CMD0 don't found !"
@@ -139,6 +152,12 @@ $CMD
 
 #[[ $? -eq 0 ]] && gzip $L
 
+# ubkp-nbu501l fk # date -d "-7 day" +%m/%d/%Y
+# 07/21/2022
+# ubkp-nbu501l fk # /usr/openv/netbackup/bin/admincmd/bpflist -client p0spcp-pg5001lv.region.vtb.ru -rl 2 -l -d 07/21/2022 00:00:00 |grep pg_backup | awk '{print $10}' | awk -F/ '{print $3 }' | sed -n '1p'
+# pgbackup_p0spcp-pg5001lv.region.vtb.ru_28.07.2022-00.05
+# ubkp-nbu501l fk # /usr/openv/netbackup/bin/admincmd/bpflist -client p0spcp-pg2001lv.region.vtb.ru -rl 2 -l -d 07/21/2022 00:00:00 |grep pg_backup | awk '{print $10}' | awk -F/ '{print $3 }' | sed -n '1p'
 
-
+# ubkp-nbu501l fk # /usr/openv/netbackup/bin/bplist -C p0spcp-pg5001lv.region.vtb.ru -F -t 0 -R "/" | sed 's/[[:cntrl:]]$//' | grep pg_backup | sed -n '1p' | awk -F/ '{print $3}'
+# pgbackup_p0spcp-pg5001lv.region.vtb.ru_29.07.2022-00.05
 
