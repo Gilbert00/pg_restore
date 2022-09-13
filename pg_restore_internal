@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# v 0.0.5
+# v 0.0.9
 #
 
 #set -x
@@ -12,7 +12,8 @@ if [[ $# -lt 4 ]]; then
 	exit 1
 fi
 
-SrvFrom=$1
+echo "$1"
+SrvFrom="$1"
 SrvTo=$2
 SrvMedia=$3
 Bckp=$4
@@ -24,6 +25,8 @@ else
 fi
 
 DirLog="/usr/openv/netbackup/logs/user_ops/"
+DirInFile=$DirLog
+DirRnmFile=$DirLog
 
 LogFile="${DirLog}pg_restore_$$.log"
 [[ -f $LogFile ]] && rm -f $LogFile
@@ -35,6 +38,7 @@ function check_server() {
 
 	local Srv=$1
 	local TestClient="/usr/openv/netbackup/bin/admincmd/bptestbpcd -client"
+	echo $Srv
 	$TestClient $Srv
 	if [ $? -gt 0 ]; then
 		echo "${Err}NB client isn't on $Srv !"
@@ -46,23 +50,37 @@ function check_media() {
 # $SrvMedia
 
 	local Srv=$1
-	local N=$(nbemmcmd -listhosts -nbservers -parsable | grep -c $Srv)
+	local N=$(/usr/openv/netbackup/bin/admincmd/nbemmcmd -listhosts -nbservers -parsable | grep -c $Srv)
 	if [[ $N -eq 0 ]]; then
-		echo "${Err}Srv isn't media server!"
+		echo "${Err}$Srv isn't media server!"
 		exit 4
 	fi
 	
-	N=$(nbemmcmd -listhosts -nbservers -parsable | grep $Srv | awk '{print $9}')
+	N=$(/usr/openv/netbackup/bin/admincmd/nbemmcmd -listhosts -nbservers -parsable | grep $Srv | awk '{print $9}')
 	if [[ $N -ne 12 ]] && [[ $N -ne 14 ]]; then
-		echo "${Err}Srv isn't active media server!"
+		echo "${Err}$Srv isn't active media server!"
 		exit 4
 	fi	
+}
+
+function get_server_from_bkp() {
+# $Bckp
+	echo $1 | awk -F_ '{print $2}'
+}
+
+function get_first() {
+# $SrvFrom
+	# if [[ $# -gt 1 ]]; then
+		# echo "${Err}Many Servers from!"
+		# exit 7
+	# fi
+	echo $1
 }
 
 function check_backup() {
 # $SrvFrom $Bckp
 
-	local N=$(bplist -C $1 -t 0 -R /pg_backup | grep -c $2)
+	local N=$(/usr/openv/netbackup/bin/bplist -C $1 -t 0 -R /pg_backup | grep -c $2)
 	if [[ $N -eq 0 ]]; then
 		echo "${Err}Backup $2 don't exists!"
 		exit 5
@@ -79,7 +97,7 @@ function set_server_in_config() {
 
 function check_media_in_clent() {
 # $SrvTo $SrvMedia
-  local N=$(bpgetconfig -M $1 | grep SERVER | grep -c  $2)
+  local N=$(/usr/openv/netbackup/bin/admincmd/bpgetconfig -M $1 | grep SERVER | grep -c  $2)
 	if [[ $N -eq 0 ]]; then
 		set_server_in_config $1 $2		
 		echo "Server $2 has been added into clients $1 bp.conf !"
@@ -97,40 +115,83 @@ function check_altnames() {
 		echo "$SrvFrom" >> $AltFile
 	fi
 }
+#---
 
+function get_last_bckp() {
+# $SrvFrom
+	local Srv
+	local Bk
+	for Srv in $1
+	do
+		check_server $Srv
+		
+		Bk=$(/usr/openv/netbackup/bin/bplist -C $Srv -F -t 0 -R "/" | sed 's/[[:cntrl:]]$//' | grep pg_backup | sed -n '1p' | awk -F/ '{print $3}')
+		if [[ ! -z $Bk ]]; then
+			SrvFromOne=$Srv
+			Bckp=$Bk
+			echo $Bckp
+			return 0
+		fi
+	done
+	
+	return 1
+}
+
+#------------------------
+# main
+
+SrvFromOne=""
+IsLast=0
+ChkBckp=${Bckp,,} # convert to lowercase
+if [[ $ChkBckp == 'last' ]]; then
+	get_last_bckp "$SrvFrom"
+	if [ $? -eq 1 ]; then
+	    echo "${Err}Base backup of clients $SrvFrom don't exists!"
+	    exit 8
+	fi
+	IsLast=1
+else	
+#	SrvFromOne=$SrvFrom
+#	SrvFromOne=$(get_server_from_bkp $Bckp)
+  SrvFromOne=$(get_first $SrvFrom)
+	check_server $SrvFromOne
+fi
 
 #check_servers_exists
-check_server $SrvFrom
+
 check_server $SrvTo
 check_server $SrvMedia
 
 check_media $SrvMedia
 
-check_backup $SrvFrom $Bckp
+if [[ $IsLast -eq 0 ]]; then
+    check_backup "$SrvFromOne" $Bckp
+fi
 
 check_media_in_clent $SrvTo $SrvMedia
 
 check_altnames
+#---
 
-
-Srv0=$SrvFrom
+Srv0=$SrvFromOne
 Srv9=$SrvTo
 DMS="-disk_media_server $SrvMedia"
-f=$InFile
+f=${DirInFile}$InFile
 L=$LogFile
 R=""
 DT="-s 11/28/2021 00:00:00 -e 11/29/2021 20:00:00"
 DT=""
 
+
 # set $InFile
 DirBckp="/pg_backup/"
 FullBckp="${DirBckp}$Bckp"
 
-echo "$FullBckp" > $InFile
+echo "$FullBckp" > $f
 
 # set $RnmFile
 if [[ ! -z $DirRnm ]]; then
-	RnmFile="${DirLog}pg_rnm_$$.in"
+	RnmFile="${DirRnmFile}pg_rnm_$$.in"
 	R="-R $RnmFile"
 	echo "change $FullBckp to ${DirRnm}$Bckp" > $RnmFile
 fi
@@ -150,14 +211,4 @@ CMD="$CMD0 -C $Srv0 -D $Srv9 -f $f -print_jobid -L $L -t 0 $R  $DMS $DT"
 echo $CMD
 $CMD
 
-#[[ $? -eq 0 ]] && gzip $L
-
-# ubkp-nbu501l fk # date -d "-7 day" +%m/%d/%Y
-# 07/21/2022
-# ubkp-nbu501l fk # /usr/openv/netbackup/bin/admincmd/bpflist -client p0spcp-pg5001lv.region.vtb.ru -rl 2 -l -d 07/21/2022 00:00:00 |grep pg_backup | awk '{print $10}' | awk -F/ '{print $3 }' | sed -n '1p'
-# pgbackup_p0spcp-pg5001lv.region.vtb.ru_28.07.2022-00.05
-# ubkp-nbu501l fk # /usr/openv/netbackup/bin/admincmd/bpflist -client p0spcp-pg2001lv.region.vtb.ru -rl 2 -l -d 07/21/2022 00:00:00 |grep pg_backup | awk '{print $10}' | awk -F/ '{print $3 }' | sed -n '1p'
-
-# ubkp-nbu501l fk # /usr/openv/netbackup/bin/bplist -C p0spcp-pg5001lv.region.vtb.ru -F -t 0 -R "/" | sed 's/[[:cntrl:]]$//' | grep pg_backup | sed -n '1p' | awk -F/ '{print $3}'
-# pgbackup_p0spcp-pg5001lv.region.vtb.ru_29.07.2022-00.05
 
