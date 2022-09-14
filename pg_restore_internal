@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# v 0.0.9
+# v 0.1.0
 #
 
 #set -x
@@ -117,6 +117,11 @@ function check_altnames() {
 }
 #---
 
+function get_bk_last_len() {
+# $Srv
+	echo $(bpimagelist -client $1 -hoursago 192 | egrep "^IMAGE" |grep -i "User-Full" | awk '{print $14,$19}' | sort -r -k1 | sed -n '1p' | awk '{print $2}')
+}
+
 function get_last_bckp() {
 # $SrvFrom
 	local Srv
@@ -129,7 +134,8 @@ function get_last_bckp() {
 		if [[ ! -z $Bk ]]; then
 			SrvFromOne=$Srv
 			Bckp=$Bk
-			echo $Bckp
+			BkLenKb=$(get_bk_last_len $Srv)
+			echo "$Bckp ${BkLenKb}KB"
 			return 0
 		fi
 	done
