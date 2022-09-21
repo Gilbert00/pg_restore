@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# v 0.1.0
+# v 0.1.1
 #
 
 #set -x
@@ -117,10 +117,26 @@ function check_altnames() {
 }
 #---
 
+function get_bk_len() {
+# "$SrvFromOne" $Bckp
+	local Srv=$1
+	local aBckpDt=($(echo $2 | awk -F_ '{print $NF}' | awk -F- '{print $1,$2}'))
+#	echo ${aBckpDt[@]}
+	local aBkDay=($(echo ${aBckpDt[0]} | awk -F. '{print $1,$2,$3}' ))
+#	echo ${aBkDay[@]}
+	local Day=$(echo "${aBkDay[1]}/${aBkDay[0]}/${aBkDay[2]}")
+	local Tm=$(echo ${aBckpDt[1]} | tr "." ":") 
+	local BkUxDt=$(date -d "$Day $Tm" +%s)
+	
+	echo $(bpimagelist -client $Srv -hoursago 192 | egrep "^IMAGE" |grep -i "User-Full" | awk '{if($14>=ChkDt) print $14,$19}' ChkDt=$BkUxDt | sort -k1 | sed -n '1p' | awk '{print $2}')
+}
+#---
+
 function get_bk_last_len() {
 # $Srv
 	echo $(bpimagelist -client $1 -hoursago 192 | egrep "^IMAGE" |grep -i "User-Full" | awk '{print $14,$19}' | sort -r -k1 | sed -n '1p' | awk '{print $2}')
 }
+#---
 
 function get_last_bckp() {
 # $SrvFrom
@@ -172,6 +188,8 @@ check_media $SrvMedia
 
 if [[ $IsLast -eq 0 ]]; then
     check_backup "$SrvFromOne" $Bckp
+		BkLenKb=$(get_bk_len "$SrvFromOne" $Bckp)
+		echo "$Bckp ${BkLenKb}KB"
 fi
 
 check_media_in_clent $SrvTo $SrvMedia
