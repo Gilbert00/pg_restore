@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# v 0.1.1
+# v 0.1.2
 #
 
 #set -x
@@ -134,7 +134,7 @@ function get_bk_len() {
 
 function get_bk_last_len() {
 # $Srv
-	echo $(bpimagelist -client $1 -hoursago 192 | egrep "^IMAGE" |grep -i "User-Full" | awk '{print $14,$19}' | sort -r -k1 | sed -n '1p' | awk '{print $2}')
+	echo $(/usr/openv/netbackup/bin/admincmd/bpimagelist -client $1 -hoursago 192 | egrep "^IMAGE" |grep -i "User-Full" | awk '{print $14,$19}' | sort -r -k1 | sed -n '1p' | awk '{print $2}')
 }
 #---
 
