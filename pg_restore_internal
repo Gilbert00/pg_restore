@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# v 0.1.2
+# v 0.1.3
 #
 
 #set -x
@@ -24,7 +24,8 @@ else
 	DirRnm="/$5/"
 fi
 
-DirLog="/usr/openv/netbackup/logs/user_ops/"
+#DirLog="/usr/openv/netbackup/logs/user_ops/"
+DirLog="/root/pg_rest/"
 DirInFile=$DirLog
 DirRnmFile=$DirLog
 
