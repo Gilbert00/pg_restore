@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# v 0.1.4
+# v 0.2.0
 #
 
 #set -x
@@ -33,6 +33,8 @@ LogFile="${DirLog}pg_restore_$$.log"
 [[ -f $LogFile ]] && rm -f $LogFile
 
 InFile="pg_restore_$$.in"
+
+SleepSec=10
 
 function split_numb() {
 # Numb
@@ -112,6 +114,7 @@ function set_server_in_config() {
 	bpgetconfig -M $1 | grep -e "^SERVER[[:space:]]*=" > $FileConfig
 	echo "SERVER = $2" >> $FileConfig 
 	cat $FileConfig | bpsetconfig -h $1
+	sleep $SleepSec
 }
 
 function check_media_in_clent() {
