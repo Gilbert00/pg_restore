@@ -1,7 +1,8 @@
 #!/bin/bash
 #
-# v 0.2.0
+# v 0.2.1
 #
+#TO-DO: backup exists on two nodes
 
 #set -x
 
@@ -58,6 +59,7 @@ function check_server() {
 # Srv
 
 	local Srv=$1
+#	echo "Srv:|${Srv}|"	#Test
 	local TestClient="/usr/openv/netbackup/bin/admincmd/bptestbpcd -client"
 	echo $Srv
 	$TestClient $Srv
@@ -164,11 +166,14 @@ function get_last_bckp() {
 # $SrvFrom
 	local Srv
 	local Bk
+#	local FileErr="/tmp/pg_restore_internal.err"
+#	echo "1:$1|"	#Test`
 	for Srv in $1
 	do
+#		echo "Srv:|${Srv}|"	#Test
 		check_server $Srv
 		
-		Bk=$(/usr/openv/netbackup/bin/bplist -C $Srv -F -t 0 -R "/" | sed 's/[[:cntrl:]]$//' | grep pg_backup | sed -n '1p' | awk -F/ '{print $3}')
+		Bk=$(/usr/openv/netbackup/bin/bplist -C $Srv -F -t 0 -R "/" 2>/dev/null | sed 's/[[:cntrl:]]$//' | grep pg_backup | sed -n '1p' | awk -F/ '{print $3}')
 		if [[ ! -z $Bk ]]; then
 			SrvFromOne=$Srv
 			Bckp=$Bk
@@ -189,12 +194,16 @@ SrvFromOne=""
 IsLast=0
 ChkBckp=${Bckp,,} # convert to lowercase
 if [[ $ChkBckp == 'last' ]]; then
+#	set -x	#Test 
 	get_last_bckp "$SrvFrom"
 	if [ $? -eq 1 ]; then
 	    echo "${Err}Base backup of clients $SrvFrom don't exists!"
 	    exit 8
 	fi
+
 	IsLast=1
+		
+#	exit	#Test	
 else	
 #	SrvFromOne=$SrvFrom
 #	SrvFromOne=$(get_server_from_bkp $Bckp)
