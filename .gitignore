@@ -4,3 +4,8 @@
 pg.in
 schedulers_copy.txt
 sched_copy00
+pg_restore_sched_in.sh
+pg_restore_internal.2
+pg_restore_sched.info
+1/
+2/
